@@ -1,0 +1,215 @@
+# ============================================
+# Java / Maven
+# ============================================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# ============================================
+# IDE - IntelliJ IDEA
+# ============================================
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+atlassian-ide-plugin.xml
+
+# ============================================
+# IDE - Eclipse
+# ============================================
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.loadpath
+.recommenders
+
+# ============================================
+# IDE - VS Code
+# ============================================
+.vscode/
+*.code-workspace
+
+# ============================================
+# IDE - NetBeans
+# ============================================
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ============================================
+# Spring Boot
+# ============================================
+HELP.md
+.springBeans
+.sts4-cache
+
+# ============================================
+# Docker
+# ============================================
+.dockerignore
+docker-compose.override.yml
+*.env.local
+.env.local
+
+# ============================================
+# Environment & Configuration
+# ============================================
+.env
+.env.*
+!.env.example
+*.properties.local
+application-local.yml
+application-local.properties
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+
+# ============================================
+# Database
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db
+data/
+*.dump
+
+# ============================================
+# Logs & Monitoring
+# ============================================
+logs/
+*.log
+*.log.*
+log/
+prometheus-data/
+grafana-data/
+
+# ============================================
+# OS Files
+# ============================================
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================
+# Temporary Files
+# ============================================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+tmp/
+temp/
+
+# ============================================
+# Application Specific
+# ============================================
+# Redis
+dump.rdb
+
+# Elasticsearch
+elasticsearch-data/
+
+# Kafka
+kafka-logs/
+
+# MySQL
+mysql-data/
+
+# ============================================
+# Testing
+# ============================================
+.coverage
+.nyc_output
+test-results/
+*.test
+
+# ============================================
+# Build & Deployment
+# ============================================
+dist/
+build/
+out/
+.gradle/
+.gradlew
+.gradlew.bat
+
+# ============================================
+# Documentation (optional - uncomment if needed)
+# ============================================
+# docs/_build/
+# site/
