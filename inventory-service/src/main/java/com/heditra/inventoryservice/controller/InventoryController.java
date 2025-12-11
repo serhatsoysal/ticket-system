@@ -71,10 +71,26 @@ public class InventoryController {
         return ResponseEntity.ok(reserved);
     }
 
+    @PostMapping("/event/{eventName}/reserve")
+    public ResponseEntity<Boolean> reserveSeatsByEventName(@PathVariable String eventName, 
+                                                            @RequestParam Integer quantity) {
+        Inventory inventory = inventoryService.getInventoryByEventName(eventName);
+        boolean reserved = inventoryService.reserveSeats(inventory.getId(), quantity);
+        return ResponseEntity.ok(reserved);
+    }
+
     @PostMapping("/{id}/release")
     public ResponseEntity<Boolean> releaseSeats(@PathVariable Long id, 
                                                  @RequestParam Integer quantity) {
         boolean released = inventoryService.releaseSeats(id, quantity);
+        return ResponseEntity.ok(released);
+    }
+
+    @PostMapping("/event/{eventName}/release")
+    public ResponseEntity<Boolean> releaseSeatsByEventName(@PathVariable String eventName, 
+                                                            @RequestParam Integer quantity) {
+        Inventory inventory = inventoryService.getInventoryByEventName(eventName);
+        boolean released = inventoryService.releaseSeats(inventory.getId(), quantity);
         return ResponseEntity.ok(released);
     }
 
