@@ -21,8 +21,14 @@ public class TicketCreatedEventHandler implements EventHandler<TicketCreatedEven
     private final PaymentRepository paymentRepository;
     
     @Override
+    @org.springframework.transaction.annotation.Transactional
     @KafkaListener(topics = "ticket-created", groupId = "payment-service-group")
     public void handle(TicketCreatedEvent event) {
+        if (event == null || event.getTicketId() == null || event.getUserId() == null || event.getTotalAmount() == null) {
+            log.error("Invalid TicketCreatedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing required fields");
+        }
+        
         log.info("Handling ticket created event for ticket: {}", event.getTicketId());
         
         try {

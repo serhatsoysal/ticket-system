@@ -26,8 +26,6 @@ public class CancelTicketCommandHandler {
     
     @Transactional
     public CommandResult<Void> handle(CancelTicketCommand command) {
-        log.info("Handling CancelTicketCommand for ticket: {}", command.getTicketId());
-        
         Ticket ticket = ticketRepository.findById(command.getTicketId())
                 .orElse(null);
         
@@ -39,31 +37,34 @@ public class CancelTicketCommandHandler {
             return CommandResult.failure("Ticket is already cancelled", "ALREADY_CANCELLED");
         }
         
-        // Release inventory
         releaseSeatsInInventory(ticket.getEventName(), ticket.getQuantity());
         
-        // Update ticket status
         ticket.setStatus(TicketStatus.CANCELLED);
         ticket.setUpdatedAt(java.time.LocalDateTime.now());
         ticketRepository.save(ticket);
         
-        // Publish event
         publishTicketCancelledEvent(ticket, command.getCancellationReason());
         
-        log.info("Ticket cancelled successfully for ID: {}", command.getTicketId());
         return CommandResult.success(null, "Ticket cancelled successfully");
     }
     
     private void releaseSeatsInInventory(String eventName, Integer quantity) {
+        if (eventName == null || quantity == null || quantity <= 0) {
+            log.warn("Invalid parameters for releasing seats: eventName={}, quantity={}", eventName, quantity);
+            return;
+        }
         try {
-            webClient.post()
+            Boolean result = webClient.post()
                     .uri("http://inventory-service/inventory/event/{eventName}/release?quantity={quantity}", 
                          eventName, quantity)
                     .retrieve()
                     .bodyToMono(Boolean.class)
                     .block();
+            if (Boolean.FALSE.equals(result)) {
+                log.warn("Failed to release {} seats for event: {}", quantity, eventName);
+            }
         } catch (Exception e) {
-            log.error("Error releasing seats in inventory service", e);
+            log.error("Error releasing seats in inventory service for event: {}, quantity: {}", eventName, quantity, e);
         }
     }
     
@@ -79,6 +80,11 @@ public class CancelTicketCommandHandler {
                 .cancellationReason(reason != null ? reason : "User requested cancellation")
                 .build();
         
-        eventPublisher.publish("ticket-cancelled", event);
+        eventPublisher.publish("ticket-cancelled", event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketCancelledEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
+                });
     }
 }

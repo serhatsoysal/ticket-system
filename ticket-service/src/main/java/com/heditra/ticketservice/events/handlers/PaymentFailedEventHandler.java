@@ -16,8 +16,14 @@ public class PaymentFailedEventHandler implements EventHandler<PaymentFailedEven
     private final TicketService ticketService;
     
     @Override
+    @org.springframework.transaction.annotation.Transactional
     @KafkaListener(topics = "payment-failed", groupId = "ticket-service-group")
     public void handle(PaymentFailedEvent event) {
+        if (event == null || event.getTicketId() == null) {
+            log.error("Invalid PaymentFailedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing ticketId");
+        }
+        
         log.info("Handling payment failed event for ticket: {}", event.getTicketId());
         
         try {

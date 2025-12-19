@@ -25,21 +25,28 @@ public class KafkaEventPublisher implements EventPublisher {
     
     @Override
     public <T extends DomainEvent> CompletableFuture<Void> publish(String topic, T event) {
-        log.debug("Publishing event {} to topic {}", event.getEventType(), topic);
+        if (event == null) {
+            CompletableFuture<Void> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new IllegalArgumentException("Event cannot be null"));
+            return failed;
+        }
+        
+        if (event.getAggregateId() == null) {
+            CompletableFuture<Void> failed = new CompletableFuture<>();
+            failed.completeExceptionally(new IllegalArgumentException("Event aggregateId cannot be null"));
+            return failed;
+        }
         
         CompletableFuture<Void> resultFuture = new CompletableFuture<>();
         
         kafkaTemplate.send(topic, event.getAggregateId(), event)
-                .thenApply(result -> {
-                    log.debug("Event {} published successfully to topic {} partition {}",
-                            event.getEventType(), topic, result.getRecordMetadata().partition());
-                    resultFuture.complete(null);
-                    return null;
-                })
-                .exceptionally(ex -> {
-                    log.error("Failed to publish event {} to topic {}", event.getEventType(), topic, ex);
-                    resultFuture.completeExceptionally(new RuntimeException("Event publishing failed", ex));
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex == null) {
+                        resultFuture.complete(null);
+                    } else {
+                        log.error("Failed to publish event {} to topic {}", event.getEventType(), topic, ex);
+                        resultFuture.completeExceptionally(new RuntimeException("Event publishing failed", ex));
+                    }
                 });
         
         return resultFuture;

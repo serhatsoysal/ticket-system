@@ -3,6 +3,7 @@ package com.heditra.saga.orchestrator;
 import com.heditra.events.core.EventPublisher;
 import com.heditra.events.ticket.TicketCreatedEvent;
 import com.heditra.saga.compensation.CompensationHandler;
+import com.heditra.saga.exception.BusinessException;
 import com.heditra.saga.model.SagaInstance;
 import com.heditra.saga.model.SagaStatus;
 import com.heditra.saga.model.SagaStep;
@@ -29,6 +30,11 @@ public class TicketBookingSaga {
     @KafkaListener(topics = "ticket-created", groupId = "saga-orchestrator-group")
     @Transactional
     public void onTicketCreated(TicketCreatedEvent event) {
+        if (event == null || event.getTicketId() == null) {
+            log.error("Invalid TicketCreatedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing ticketId");
+        }
+        
         log.info("Starting ticket booking saga for ticket: {}", event.getTicketId());
         
         SagaInstance saga = SagaInstance.builder()
@@ -41,23 +47,9 @@ public class TicketBookingSaga {
         sagaRepository.save(saga);
         
         try {
-            // Step 1: Inventory reserved (already done by ticket service)
-            executeStep(saga, "inventory-reservation", () -> {
-                log.info("Inventory already reserved for ticket: {}", event.getTicketId());
-                return true;
-            });
-            
-            // Step 2: Payment will be initiated by payment service
-            executeStep(saga, "payment-initiation", () -> {
-                log.info("Payment initiation triggered for ticket: {}", event.getTicketId());
-                return true;
-            });
-            
-            // Step 3: Notification will be sent by notification service
-            executeStep(saga, "notification-sending", () -> {
-                log.info("Notification sending triggered for ticket: {}", event.getTicketId());
-                return true;
-            });
+            executeStep(saga, "inventory-reservation", () -> true);
+            executeStep(saga, "payment-initiation", () -> true);
+            executeStep(saga, "notification-sending", () -> true);
             
             saga.setStatus(SagaStatus.IN_PROGRESS);
             sagaRepository.save(saga);
@@ -71,8 +63,6 @@ public class TicketBookingSaga {
     }
     
     private void executeStep(SagaInstance saga, String stepName, StepExecutor executor) {
-        log.debug("Executing saga step: {} for saga: {}", stepName, saga.getSagaId());
-        
         SagaStep step = SagaStep.builder()
                 .stepName(stepName)
                 .status(StepStatus.IN_PROGRESS)
@@ -86,10 +76,9 @@ public class TicketBookingSaga {
             
             if (success) {
                 step.setStatus(StepStatus.COMPLETED);
-                log.debug("Saga step completed: {}", stepName);
             } else {
                 step.setStatus(StepStatus.FAILED);
-                throw new RuntimeException("Step execution returned false: " + stepName);
+                throw new BusinessException("Step execution returned false: " + stepName, "SAGA_STEP_FAILED");
             }
             
         } catch (Exception e) {

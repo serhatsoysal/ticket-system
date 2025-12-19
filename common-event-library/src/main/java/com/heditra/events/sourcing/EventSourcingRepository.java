@@ -20,7 +20,6 @@ public class EventSourcingRepository<T extends AggregateRoot> {
         if (!uncommittedEvents.isEmpty()) {
             eventStore.saveAll(uncommittedEvents);
             aggregate.clearUncommittedEvents();
-            log.debug("Saved {} events for aggregate {}", uncommittedEvents.size(), aggregate.getAggregateId());
         }
     }
     
@@ -31,13 +30,12 @@ public class EventSourcingRepository<T extends AggregateRoot> {
             
             if (!history.isEmpty()) {
                 aggregate.loadFromHistory(history);
-                log.debug("Loaded aggregate {} with {} events", aggregateId, history.size());
             }
             
             return aggregate;
         } catch (Exception e) {
             log.error("Failed to load aggregate {}", aggregateId, e);
-            throw new RuntimeException("Failed to load aggregate", e);
+            throw new com.heditra.events.core.EventProcessingException("Failed to load aggregate: " + aggregateId, e);
         }
     }
 }

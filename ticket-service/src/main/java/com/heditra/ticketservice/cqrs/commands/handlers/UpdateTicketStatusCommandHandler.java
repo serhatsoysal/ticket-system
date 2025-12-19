@@ -23,9 +23,6 @@ public class UpdateTicketStatusCommandHandler {
     
     @Transactional
     public CommandResult<Void> handle(UpdateTicketStatusCommand command) {
-        log.info("Handling UpdateTicketStatusCommand for ticket: {}, status: {}", 
-                command.getTicketId(), command.getStatus());
-        
         Ticket ticket = ticketRepository.findById(command.getTicketId())
                 .orElse(null);
         
@@ -33,16 +30,18 @@ public class UpdateTicketStatusCommandHandler {
             return CommandResult.failure("Ticket not found", "TICKET_NOT_FOUND");
         }
         
+        if (ticket.getStatus() == com.heditra.ticketservice.model.TicketStatus.CANCELLED && command.getStatus() != com.heditra.ticketservice.model.TicketStatus.CANCELLED) {
+            return CommandResult.failure("Cannot change status of a cancelled ticket", "TICKET_ALREADY_CANCELLED");
+        }
+        
         ticket.setStatus(command.getStatus());
         ticket.setUpdatedAt(java.time.LocalDateTime.now());
         ticketRepository.save(ticket);
         
-        // Publish event if confirmed
         if (command.getStatus() == com.heditra.ticketservice.model.TicketStatus.CONFIRMED) {
             publishTicketConfirmedEvent(ticket);
         }
         
-        log.info("Ticket status updated successfully for ID: {}", command.getTicketId());
         return CommandResult.success(null, "Ticket status updated successfully");
     }
     
@@ -50,12 +49,17 @@ public class UpdateTicketStatusCommandHandler {
         TicketConfirmedEvent event = TicketConfirmedEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .aggregateId(ticket.getId().toString())
-                .version(2)
+                .version(ticket.getVersion() != null ? (int) (ticket.getVersion() + 1) : 2)
                 .ticketId(ticket.getId())
                 .userId(ticket.getUserId())
                 .eventName(ticket.getEventName())
                 .build();
         
-        eventPublisher.publish("ticket-confirmed", event);
+        eventPublisher.publish("ticket-confirmed", event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketConfirmedEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
+                });
     }
 }

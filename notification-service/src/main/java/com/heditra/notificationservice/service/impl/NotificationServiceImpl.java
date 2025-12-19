@@ -1,5 +1,8 @@
 package com.heditra.notificationservice.service.impl;
 
+import com.heditra.events.payment.PaymentCompletedEvent;
+import com.heditra.events.ticket.TicketCreatedEvent;
+import com.heditra.events.user.UserCreatedEvent;
 import com.heditra.notificationservice.model.Notification;
 import com.heditra.notificationservice.model.NotificationStatus;
 import com.heditra.notificationservice.model.NotificationType;
@@ -35,36 +38,31 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public Notification getNotificationById(Long id) {
-        log.debug("Fetching notification by ID: {}", id);
         return notificationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Notification not found with ID: " + id));
+                .orElseThrow(() -> new com.heditra.notificationservice.exception.NotificationNotFoundException("Notification not found with ID: " + id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getAllNotifications() {
-        log.debug("Fetching all notifications");
         return notificationRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getNotificationsByUserId(Long userId) {
-        log.debug("Fetching notifications for user ID: {}", userId);
         return notificationRepository.findByUserId(userId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getNotificationsByStatus(NotificationStatus status) {
-        log.debug("Fetching notifications by status: {}", status);
         return notificationRepository.findByStatus(status);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Notification> getNotificationsByType(NotificationType type) {
-        log.debug("Fetching notifications by type: {}", type);
         return notificationRepository.findByType(type);
     }
 
@@ -97,48 +95,79 @@ public class NotificationServiceImpl implements NotificationService {
         log.info("Notification deleted successfully with ID: {}", id);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @KafkaListener(topics = "user-created", groupId = "notification-service-group")
-    public void handleUserCreated(Object userData) {
-        log.info("Received user-created event: {}", userData);
-        Notification notification = Notification.builder()
-                .userId(1L)
-                .message("Welcome! Your account has been created successfully.")
-                .type(NotificationType.EMAIL)
-                .status(NotificationStatus.PENDING)
-                .build();
-        createNotification(notification);
-        sendNotification(notification);
+    public void handleUserCreated(UserCreatedEvent event) {
+        if (event == null || event.getUserId() == null) {
+            log.error("Invalid UserCreatedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing userId");
+        }
+        
+        log.info("Received user-created event for user: {}", event.getUserId());
+        try {
+            Notification notification = Notification.builder()
+                    .userId(event.getUserId())
+                    .message("Welcome! Your account has been created successfully.")
+                    .type(NotificationType.EMAIL)
+                    .status(NotificationStatus.PENDING)
+                    .build();
+            Notification savedNotification = createNotification(notification);
+            sendNotification(savedNotification);
+        } catch (Exception e) {
+            log.error("Failed to handle user-created event for user: {}", event.getUserId(), e);
+            throw e;
+        }
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @KafkaListener(topics = "ticket-created", groupId = "notification-service-group")
-    public void handleTicketCreated(Object ticketData) {
-        log.info("Received ticket-created event: {}", ticketData);
-        Notification notification = Notification.builder()
-                .userId(1L)
-                .message("Your ticket has been booked successfully.")
-                .type(NotificationType.EMAIL)
-                .status(NotificationStatus.PENDING)
-                .build();
-        createNotification(notification);
-        sendNotification(notification);
+    public void handleTicketCreated(TicketCreatedEvent event) {
+        if (event == null || event.getTicketId() == null || event.getUserId() == null) {
+            log.error("Invalid TicketCreatedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing required fields");
+        }
+        
+        log.info("Received ticket-created event for ticket: {}", event.getTicketId());
+        try {
+            Notification notification = Notification.builder()
+                    .userId(event.getUserId())
+                    .message("Your ticket has been booked successfully.")
+                    .type(NotificationType.EMAIL)
+                    .status(NotificationStatus.PENDING)
+                    .build();
+            Notification savedNotification = createNotification(notification);
+            sendNotification(savedNotification);
+        } catch (Exception e) {
+            log.error("Failed to handle ticket-created event for ticket: {}", event.getTicketId(), e);
+            throw e;
+        }
     }
 
-    @KafkaListener(topics = "payment-success", groupId = "notification-service-group")
-    public void handlePaymentSuccess(Object paymentData) {
-        log.info("Received payment-success event: {}", paymentData);
-        Notification notification = Notification.builder()
-                .userId(1L)
-                .message("Payment processed successfully. Thank you!")
-                .type(NotificationType.EMAIL)
-                .status(NotificationStatus.PENDING)
-                .build();
-        createNotification(notification);
-        sendNotification(notification);
+    @org.springframework.transaction.annotation.Transactional
+    @KafkaListener(topics = "payment-completed", groupId = "notification-service-group")
+    public void handlePaymentCompleted(PaymentCompletedEvent event) {
+        if (event == null || event.getPaymentId() == null || event.getUserId() == null) {
+            log.error("Invalid PaymentCompletedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing required fields");
+        }
+        
+        log.info("Received payment-completed event for payment: {}", event.getPaymentId());
+        try {
+            Notification notification = Notification.builder()
+                    .userId(event.getUserId())
+                    .message("Payment processed successfully. Thank you!")
+                    .type(NotificationType.EMAIL)
+                    .status(NotificationStatus.PENDING)
+                    .build();
+            Notification savedNotification = createNotification(notification);
+            sendNotification(savedNotification);
+        } catch (Exception e) {
+            log.error("Failed to handle payment-completed event for payment: {}", event.getPaymentId(), e);
+            throw e;
+        }
     }
 
     private boolean executeNotificationSending(Notification notification) {
-        log.debug("Executing notification sending via {}: {}", 
-                notification.getType(), notification.getMessage());
         return true;
     }
 }

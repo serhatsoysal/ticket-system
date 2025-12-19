@@ -2,6 +2,7 @@ package com.heditra.ticketservice.exception.handler;
 
 import com.heditra.ticketservice.dto.common.ApiErrorResponse;
 import com.heditra.ticketservice.exception.BusinessException;
+import com.heditra.ticketservice.exception.TechnicalException;
 import com.heditra.ticketservice.exception.ValidationException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,20 @@ public class GlobalExceptionHandler {
         );
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+    
+    @ExceptionHandler(TechnicalException.class)
+    public ResponseEntity<ApiErrorResponse> handleTechnicalException(
+            TechnicalException ex, HttpServletRequest request) {
+        log.error("Technical exception occurred: {}", ex.getMessage(), ex);
+        
+        ApiErrorResponse error = ApiErrorResponse.of(
+                ex.getErrorCode(),
+                "A technical error occurred. Please try again later.",
+                request.getRequestURI()
+        );
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)

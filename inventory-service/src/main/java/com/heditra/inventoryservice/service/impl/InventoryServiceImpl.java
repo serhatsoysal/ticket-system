@@ -1,5 +1,7 @@
 package com.heditra.inventoryservice.service.impl;
 
+import com.heditra.inventoryservice.exception.BusinessException;
+import com.heditra.inventoryservice.exception.InventoryNotFoundException;
 import com.heditra.inventoryservice.model.Inventory;
 import com.heditra.inventoryservice.repository.InventoryRepository;
 import com.heditra.inventoryservice.service.InventoryService;
@@ -38,7 +40,7 @@ public class InventoryServiceImpl implements InventoryService {
         validateInventory(inventory);
 
         if (inventoryRepository.existsByEventName(inventory.getEventName())) {
-            throw new RuntimeException("Inventory already exists for event: " + inventory.getEventName());
+            throw new BusinessException("Inventory already exists for event: " + inventory.getEventName(), "INVENTORY_ALREADY_EXISTS");
         }
 
         Inventory savedInventory = inventoryRepository.save(inventory);
@@ -50,24 +52,21 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     @Cacheable(value = "inventory", key = "#id")
     public Inventory getInventoryById(Long id) {
-        log.debug("Fetching inventory by ID: {}", id);
         return inventoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Inventory not found with ID: " + id));
+                .orElseThrow(() -> new InventoryNotFoundException("Inventory not found with ID: " + id));
     }
 
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "inventory", key = "'event:' + #eventName")
     public Inventory getInventoryByEventName(String eventName) {
-        log.debug("Fetching inventory by event name: {}", eventName);
         return inventoryRepository.findByEventName(eventName)
-                .orElseThrow(() -> new RuntimeException("Inventory not found for event: " + eventName));
+                .orElseThrow(() -> new InventoryNotFoundException("Inventory not found for event: " + eventName));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Inventory> getAllInventory() {
-        log.debug("Fetching all inventory");
         return inventoryRepository.findAll();
     }
 
@@ -75,14 +74,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     @Cacheable(value = "availableEvents")
     public List<Inventory> getAvailableEvents() {
-        log.debug("Fetching available events");
         return inventoryRepository.findAvailableEvents(LocalDateTime.now());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Inventory> getEventsByDateRange(LocalDateTime start, LocalDateTime end) {
-        log.debug("Fetching events between {} and {}", start, end);
         return inventoryRepository.findByEventDateBetween(start, end);
     }
 
@@ -111,24 +108,18 @@ public class InventoryServiceImpl implements InventoryService {
         try {
             if (lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
                 try {
-                    log.info("Acquired lock for reserving {} seats for inventory ID: {}", quantity, inventoryId);
-
                     Inventory inventory = getInventoryById(inventoryId);
 
                     if (inventory.getAvailableSeats() < quantity) {
-                        log.warn("Insufficient seats. Available: {}, Requested: {}", 
-                                inventory.getAvailableSeats(), quantity);
                         return false;
                     }
 
                     inventory.setAvailableSeats(inventory.getAvailableSeats() - quantity);
                     inventoryRepository.save(inventory);
 
-                    log.info("Successfully reserved {} seats for inventory ID: {}", quantity, inventoryId);
                     return true;
                 } finally {
                     lock.unlock();
-                    log.debug("Released lock for inventory ID: {}", inventoryId);
                 }
             } else {
                 log.warn("Could not acquire lock for inventory ID: {}", inventoryId);
@@ -151,24 +142,19 @@ public class InventoryServiceImpl implements InventoryService {
         try {
             if (lock.tryLock(LOCK_WAIT_TIME, LOCK_LEASE_TIME, TimeUnit.SECONDS)) {
                 try {
-                    log.info("Acquired lock for releasing {} seats for inventory ID: {}", quantity, inventoryId);
-
                     Inventory inventory = getInventoryById(inventoryId);
 
                     Integer newAvailableSeats = inventory.getAvailableSeats() + quantity;
                     if (newAvailableSeats > inventory.getTotalSeats()) {
-                        log.warn("Cannot release more seats than total capacity");
                         return false;
                     }
 
                     inventory.setAvailableSeats(newAvailableSeats);
                     inventoryRepository.save(inventory);
 
-                    log.info("Successfully released {} seats for inventory ID: {}", quantity, inventoryId);
                     return true;
                 } finally {
                     lock.unlock();
-                    log.debug("Released lock for inventory ID: {}", inventoryId);
                 }
             } else {
                 log.warn("Could not acquire lock for inventory ID: {}", inventoryId);
@@ -194,11 +180,20 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     private void validateInventory(Inventory inventory) {
+        if (inventory == null) {
+            throw new BusinessException("Inventory cannot be null", "INVALID_INVENTORY");
+        }
+        if (inventory.getAvailableSeats() == null || inventory.getTotalSeats() == null) {
+            throw new BusinessException("Available seats and total seats cannot be null", "INVALID_INVENTORY");
+        }
         if (inventory.getAvailableSeats() > inventory.getTotalSeats()) {
-            throw new RuntimeException("Available seats cannot exceed total seats");
+            throw new BusinessException("Available seats cannot exceed total seats", "INVALID_INVENTORY");
+        }
+        if (inventory.getEventDate() == null) {
+            throw new BusinessException("Event date cannot be null", "INVALID_EVENT_DATE");
         }
         if (inventory.getEventDate().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Event date must be in the future");
+            throw new BusinessException("Event date must be in the future", "INVALID_EVENT_DATE");
         }
     }
 

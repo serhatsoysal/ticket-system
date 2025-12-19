@@ -30,11 +30,7 @@ public class CreateTicketCommandHandler {
     @Transactional
     @CircuitBreaker(name = "inventory-service", fallbackMethod = "handleInventoryFailure")
     public CommandResult<Long> handle(CreateTicketCommand command) {
-        log.info("Handling CreateTicketCommand for user: {}, event: {}", 
-                command.getUserId(), command.getEventName());
-        
-        // Validation
-        if (command.getUserId() == null || command.getEventName() == null || command.getQuantity() == null) {
+        if (command.getUserId() == null || command.getEventName() == null || command.getQuantity() == null || command.getPricePerTicket() == null) {
             return CommandResult.failure("Invalid command parameters", "VALIDATION_ERROR");
         }
         
@@ -42,13 +38,15 @@ public class CreateTicketCommandHandler {
             return CommandResult.failure("Quantity must be greater than zero", "INVALID_QUANTITY");
         }
         
-        // Reserve inventory
+        if (command.getPricePerTicket().compareTo(BigDecimal.ZERO) <= 0) {
+            return CommandResult.failure("Price per ticket must be greater than zero", "INVALID_PRICE");
+        }
+        
         boolean seatsReserved = reserveSeatsInInventory(command.getEventName(), command.getQuantity());
         if (!seatsReserved) {
             return CommandResult.failure("Unable to reserve seats. Insufficient availability.", "INVENTORY_UNAVAILABLE");
         }
         
-        // Create ticket
         Ticket ticket = new Ticket();
         ticket.setUserId(command.getUserId());
         ticket.setEventName(command.getEventName());
@@ -60,7 +58,6 @@ public class CreateTicketCommandHandler {
         
         Ticket savedTicket = ticketRepository.save(ticket);
         
-        // Publish event
         publishTicketCreatedEvent(savedTicket);
         
         log.info("Ticket created successfully with ID: {}", savedTicket.getId());
@@ -95,7 +92,12 @@ public class CreateTicketCommandHandler {
                 .totalAmount(ticket.getTotalAmount())
                 .build();
         
-        eventPublisher.publish("ticket-created", event);
+        eventPublisher.publish("ticket-created", event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketCreatedEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
+                });
     }
     
     @SuppressWarnings("unused")

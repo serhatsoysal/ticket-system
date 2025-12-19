@@ -4,6 +4,10 @@ import com.heditra.events.core.EventPublisher;
 import com.heditra.events.ticket.TicketCancelledEvent;
 import com.heditra.events.ticket.TicketCreatedEvent;
 import com.heditra.events.ticket.TicketConfirmedEvent;
+import com.heditra.ticketservice.exception.BusinessException;
+import com.heditra.ticketservice.exception.TechnicalException;
+import com.heditra.ticketservice.exception.TicketNotFoundException;
+import com.heditra.ticketservice.exception.ValidationException;
 import com.heditra.ticketservice.model.Ticket;
 import com.heditra.ticketservice.model.TicketStatus;
 import com.heditra.ticketservice.repository.TicketRepository;
@@ -33,14 +37,31 @@ public class TicketServiceImpl implements TicketService {
     @Override
     @Transactional
     public Ticket createTicket(Ticket ticket) {
+        if (ticket == null) {
+            throw new IllegalArgumentException("Ticket cannot be null");
+        }
+        if (ticket.getUserId() == null || ticket.getEventName() == null || ticket.getQuantity() == null || ticket.getPricePerTicket() == null) {
+            throw new ValidationException("Missing required ticket fields", "VALIDATION_ERROR");
+        }
+        if (ticket.getQuantity() <= 0) {
+            throw new ValidationException("Quantity must be greater than zero", "INVALID_QUANTITY");
+        }
+        if (ticket.getPricePerTicket().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new ValidationException("Price per ticket must be greater than zero", "INVALID_PRICE");
+        }
+        
         log.info("Creating new ticket for user: {} and event: {}", 
                 ticket.getUserId(), ticket.getEventName());
 
         ticket.setStatus(TicketStatus.PENDING);
+        
+        if (ticket.getTotalAmount() == null) {
+            ticket.setTotalAmount(ticket.getPricePerTicket().multiply(java.math.BigDecimal.valueOf(ticket.getQuantity())));
+        }
 
         boolean seatsReserved = reserveSeatsInInventory(ticket.getEventName(), ticket.getQuantity());
         if (!seatsReserved) {
-            throw new RuntimeException("Unable to reserve seats. Insufficient availability.");
+            throw new BusinessException("Unable to reserve seats. Insufficient availability.", "INVENTORY_UNAVAILABLE");
         }
 
         Ticket savedTicket = ticketRepository.save(ticket);
@@ -55,45 +76,46 @@ public class TicketServiceImpl implements TicketService {
     @Transactional(readOnly = true)
     @Cacheable(value = "tickets", key = "#id")
     public Ticket getTicketById(Long id) {
-        log.debug("Fetching ticket by ID: {}", id);
         return ticketRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Ticket not found with ID: " + id));
+                .orElseThrow(() -> new TicketNotFoundException("Ticket not found with ID: " + id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Ticket> getAllTickets() {
-        log.debug("Fetching all tickets");
         return ticketRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByUserId(Long userId) {
-        log.debug("Fetching tickets for user ID: {}", userId);
         return ticketRepository.findByUserId(userId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByStatus(TicketStatus status) {
-        log.debug("Fetching tickets by status: {}", status);
         return ticketRepository.findByStatus(status);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Ticket> getTicketsByEventName(String eventName) {
-        log.debug("Fetching tickets for event: {}", eventName);
         return ticketRepository.findByEventName(eventName);
     }
 
     @Override
     @Transactional
+    @CacheEvict(value = "tickets", key = "#id")
     public Ticket updateTicketStatus(Long id, TicketStatus status) {
         log.info("Updating ticket status to {} for ID: {}", status, id);
 
         Ticket ticket = getTicketById(id);
+        
+        if (ticket.getStatus() == TicketStatus.CANCELLED && status != TicketStatus.CANCELLED) {
+            throw new BusinessException("Cannot change status of a cancelled ticket", "TICKET_ALREADY_CANCELLED");
+        }
+        
         ticket.setStatus(status);
 
         Ticket updatedTicket = ticketRepository.save(ticket);
@@ -114,7 +136,7 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket = getTicketById(id);
 
         if (ticket.getStatus() == TicketStatus.CANCELLED) {
-            throw new RuntimeException("Ticket is already cancelled");
+            throw new BusinessException("Ticket is already cancelled", "TICKET_ALREADY_CANCELLED");
         }
 
         releaseSeatsInInventory(ticket.getEventName(), ticket.getQuantity());
@@ -130,6 +152,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "tickets", key = "#id")
     public void deleteTicket(Long id) {
         log.info("Deleting ticket with ID: {}", id);
 
@@ -153,7 +176,7 @@ public class TicketServiceImpl implements TicketService {
             return Boolean.TRUE.equals(result);
         } catch (Exception e) {
             log.error("Error reserving seats in inventory service", e);
-            throw new RuntimeException("Failed to reserve seats", e);
+            throw new TechnicalException("Failed to reserve seats", e);
         }
     }
 
@@ -163,15 +186,22 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private void releaseSeatsInInventory(String eventName, Integer quantity) {
+        if (eventName == null || quantity == null || quantity <= 0) {
+            log.warn("Invalid parameters for releasing seats: eventName={}, quantity={}", eventName, quantity);
+            return;
+        }
         try {
-            webClient.post()
+            Boolean result = webClient.post()
                     .uri("http://inventory-service/inventory/event/{eventName}/release?quantity={quantity}", 
                          eventName, quantity)
                     .retrieve()
                     .bodyToMono(Boolean.class)
                     .block();
+            if (Boolean.FALSE.equals(result)) {
+                log.warn("Failed to release {} seats for event: {}", quantity, eventName);
+            }
         } catch (Exception e) {
-            log.error("Error releasing seats in inventory service", e);
+            log.error("Error releasing seats in inventory service for event: {}, quantity: {}", eventName, quantity, e);
         }
     }
 
@@ -189,9 +219,10 @@ public class TicketServiceImpl implements TicketService {
                 .build();
         
         eventPublisher.publish("ticket-created", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish TicketCreatedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketCreatedEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
                 });
     }
 
@@ -206,9 +237,10 @@ public class TicketServiceImpl implements TicketService {
                 .build();
         
         eventPublisher.publish("ticket-confirmed", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish TicketConfirmedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketConfirmedEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
                 });
     }
 
@@ -225,9 +257,10 @@ public class TicketServiceImpl implements TicketService {
                 .build();
         
         eventPublisher.publish("ticket-cancelled", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish TicketCancelledEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish TicketCancelledEvent for ticket ID: {}", ticket.getId(), ex);
+                    }
                 });
     }
 }

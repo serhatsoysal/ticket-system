@@ -17,8 +17,14 @@ public class PaymentCompletedEventHandler implements EventHandler<PaymentComplet
     private final TicketService ticketService;
     
     @Override
+    @org.springframework.transaction.annotation.Transactional
     @KafkaListener(topics = "payment-completed", groupId = "ticket-service-group")
     public void handle(PaymentCompletedEvent event) {
+        if (event == null || event.getTicketId() == null) {
+            log.error("Invalid PaymentCompletedEvent received: {}", event);
+            throw new IllegalArgumentException("Invalid event data: missing ticketId");
+        }
+        
         log.info("Handling payment completed event for ticket: {}", event.getTicketId());
         
         try {

@@ -35,6 +35,16 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponse createPayment(CreatePaymentRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request cannot be null");
+        }
+        if (request.getTicketId() == null || request.getUserId() == null || request.getAmount() == null) {
+            throw new com.heditra.paymentservice.exception.ValidationException("Missing required payment fields", "VALIDATION_ERROR");
+        }
+        if (request.getAmount().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new com.heditra.paymentservice.exception.ValidationException("Payment amount must be greater than zero", "INVALID_AMOUNT");
+        }
+        
         log.info("Creating new payment for ticket ID: {}", request.getTicketId());
 
         Payment payment = paymentMapper.toEntity(request);
@@ -51,7 +61,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResponse getPaymentById(Long id) {
-        log.debug("Fetching payment by ID: {}", id);
         Payment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new PaymentNotFoundException(id));
         return paymentMapper.toResponse(payment);
@@ -59,7 +68,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResponse getPaymentByTicketId(Long ticketId) {
-        log.debug("Fetching payment by ticket ID: {}", ticketId);
         Payment payment = paymentRepository.findByTicketId(ticketId)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found for ticket ID: " + ticketId));
         return paymentMapper.toResponse(payment);
@@ -67,7 +75,6 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public PaymentResponse getPaymentByTransactionId(String transactionId) {
-        log.debug("Fetching payment by transaction ID: {}", transactionId);
         Payment payment = paymentRepository.findByTransactionId(transactionId)
                 .orElseThrow(() -> new PaymentNotFoundException("Payment not found for transaction ID: " + transactionId));
         return paymentMapper.toResponse(payment);
@@ -75,21 +82,18 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public List<PaymentResponse> getAllPayments() {
-        log.debug("Fetching all payments");
         List<Payment> payments = paymentRepository.findAll();
         return paymentMapper.toResponseList(payments);
     }
 
     @Override
     public List<PaymentResponse> getPaymentsByUserId(Long userId) {
-        log.debug("Fetching payments for user ID: {}", userId);
         List<Payment> payments = paymentRepository.findByUserId(userId);
         return paymentMapper.toResponseList(payments);
     }
 
     @Override
     public List<PaymentResponse> getPaymentsByStatus(PaymentStatus status) {
-        log.debug("Fetching payments by status: {}", status);
         List<Payment> payments = paymentRepository.findByStatus(status);
         return paymentMapper.toResponseList(payments);
     }
@@ -162,7 +166,6 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private boolean executePaymentGateway(Payment payment) {
-        log.debug("Executing payment gateway for transaction: {}", payment.getTransactionId());
         return true;
     }
 
@@ -175,14 +178,15 @@ public class PaymentServiceImpl implements PaymentService {
                 .ticketId(payment.getTicketId())
                 .userId(payment.getUserId())
                 .amount(payment.getAmount())
-                .paymentMethod(payment.getPaymentMethod().toString())
+                .paymentMethod(payment.getPaymentMethod() != null ? payment.getPaymentMethod().toString() : null)
                 .transactionId(payment.getTransactionId())
                 .build();
         
         eventPublisher.publish("payment-initiated", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish PaymentInitiatedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish PaymentInitiatedEvent for payment ID: {}", payment.getId(), ex);
+                    }
                 });
     }
 
@@ -199,9 +203,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         
         eventPublisher.publish("payment-completed", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish PaymentCompletedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish PaymentCompletedEvent for payment ID: {}", payment.getId(), ex);
+                    }
                 });
     }
 
@@ -219,9 +224,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         
         eventPublisher.publish("payment-failed", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish PaymentFailedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish PaymentFailedEvent for payment ID: {}", payment.getId(), ex);
+                    }
                 });
     }
 
@@ -239,9 +245,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
         
         eventPublisher.publish("payment-refunded", event)
-                .exceptionally(ex -> {
-                    log.error("Failed to publish PaymentRefundedEvent", ex);
-                    return null;
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to publish PaymentRefundedEvent for payment ID: {}", payment.getId(), ex);
+                    }
                 });
     }
 }
