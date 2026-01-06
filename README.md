@@ -1,10 +1,10 @@
 # Ticketing System
 
-[![Build Status](https://github.com/serhatsoysal/ticket-system/workflows/CI%20Pipeline/badge.svg)](https://github.com/serhatsoysal/ticket-system/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/serhatsoysal/ticket-system/workflows/CodeQL%20Security%20Analysis/badge.svg)](https://github.com/serhatsoysal/ticket-system/actions/workflows/codeql.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=serhatsoysal_ticket-system&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=serhatsoysal_ticket-system)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=serhatsoysal_ticket-system&metric=coverage)](https://sonarcloud.io/summary/new_code?id=serhatsoysal_ticket-system)
-[![codecov](https://codecov.io/gh/serhatsoysal/ticket-system/branch/master/graph/badge.svg)](https://codecov.io/gh/serhatsoysal/ticket-system)
+[![Build Status](https://github.com/serhatsoysal/distributed-ticketing-system/workflows/CI%20Pipeline/badge.svg)](https://github.com/serhatsoysal/distributed-ticketing-system/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/serhatsoysal/distributed-ticketing-system/workflows/CodeQL%20Security%20Analysis/badge.svg)](https://github.com/serhatsoysal/distributed-ticketing-system/actions/workflows/codeql.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=serhatsoysal_distributed-ticketing-system&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=serhatsoysal_distributed-ticketing-system)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=serhatsoysal_distributed-ticketing-system&metric=coverage)](https://sonarcloud.io/summary/new_code?id=serhatsoysal_distributed-ticketing-system)
+[![codecov](https://codecov.io/gh/serhatsoysal/distributed-ticketing-system/branch/master/graph/badge.svg)](https://codecov.io/gh/serhatsoysal/distributed-ticketing-system)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.0-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -127,7 +127,7 @@ ticketing-system/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/serhatsoysal/ticket-system.git
+   git clone https://github.com/serhatsoysal/distributed-ticketing-system.git
    cd ticketing-system
    ```
 
