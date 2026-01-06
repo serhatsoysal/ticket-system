@@ -1,7 +1,11 @@
 name: SonarCloud Analysis
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
 
 permissions:
   contents: read
@@ -24,19 +28,16 @@ jobs:
           distribution: 'temurin'
           cache: maven
       
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
+      - name: Build with Maven
+        run: mvn clean install -DskipTests
       
-      - name: Build and analyze
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=serhatsoysal_ticket-system \
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          args: >
+            -Dsonar.projectKey=serhatsoysal_ticket-system
             -Dsonar.organization=serhatsoysal
 
