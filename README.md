@@ -8,6 +8,23 @@ The Ticketing System is designed to handle the complete lifecycle of ticket book
 
 Key architectural decisions focus on loose coupling between services, eventual consistency, and fault tolerance. Services communicate asynchronously through Kafka, ensuring high throughput and resilience to individual service failures.
 
+## Architecture
+
+The following diagram illustrates the high-level architecture of the ticketing system:
+
+![System Architecture](architect.jpg)
+
+The architecture follows an event-driven microservices pattern with the following key components:
+
+- **Client Layer**: External clients accessing the system
+- **NGINX Edge Layer**: Load balancer and reverse proxy at the edge
+- **API Gateway**: Spring Cloud Gateway routing requests to appropriate services
+- **Microservices**: Independent services (User, Ticket, Payment, Inventory, Notification, Saga Orchestrator)
+- **Kafka Event Backbone**: Central message broker for asynchronous event-driven communication
+- **Service Discovery**: Consul for service registration and discovery
+- **Data Stores**: MySQL for persistent storage, Redis for caching and distributed locking
+- **Elastic**: Event processing for logging and analytics
+
 ## Features
 
 - **Microservices Architecture**: Independent, scalable services with clear domain boundaries
