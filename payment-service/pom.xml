@@ -29,7 +29,7 @@
         <java.version>21</java.version>
         <spring-cloud.version>2023.0.0</spring-cloud.version>
         <checkstyle.version>3.3.1</checkstyle.version>
-        <jacoco.version>0.8.11</jacoco.version>
+        <jacoco.version>0.8.14</jacoco.version>
         <sonar.version>3.10.0.2594</sonar.version>
         <sonar.organization>serhatsoysal</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
