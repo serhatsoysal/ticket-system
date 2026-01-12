@@ -88,7 +88,7 @@
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.25.0</version>
+            <version>4.1.0</version>
         </dependency>
 
         <dependency>
